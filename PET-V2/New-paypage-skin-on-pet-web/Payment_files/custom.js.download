@@ -1,0 +1,471 @@
+var isUnauthorised = false
+var continueBtnClicked = false
+var hasAnyValidationError = false
+
+$(document).ready(function () {
+
+    $.ajaxSetup({
+        beforeSend: function(xhr, s) {
+            if($("meta[name='csrfTokenName']") && $("meta[name='csrfTokenName']").attr('content') && $("meta[name='csrfTokenValue']") && $("meta[name='csrfTokenValue']").attr('content')){
+                xhr.setRequestHeader($("meta[name='csrfTokenName']").attr('content'), $("meta[name='csrfTokenValue']").attr('content'));
+            }
+            xhr.setRequestHeader("maintreeversion", typeof mainTreeVersion != "undefined" && mainTreeVersion!=null ? mainTreeVersion:0);
+            if(s.data != undefined && s.data != null){
+                s.data = s.data.replace("partName=","partName=part__")
+            }
+        },
+        dataFilter: function (response) {
+            let resObj = JSON.parse(response)
+
+            if (resObj.isUnauthorized) {
+                isUnauthorised = true
+                selectedflow = resObj.selectedflow
+                goToUnauthorizedPage(selectedflow)
+            }
+
+            return response
+        }
+    });
+
+    var date = new Date();
+    setCookieForMinutes("timeChecker",date.toUTCString(),29)
+
+    manageTourProperty()
+    // Broadcast that you're opening a page.
+/*
+    localStorage.openpages = Date.now();
+    var onLocalStorageEvent = function(e){
+        if(e.key == "openpages" && !document.hasFocus()){
+            // Listen if anybody else is opening the same page!
+            localStorage.page_available = Date.now();
+        }
+        if(e.key == "page_available" && partName=="pet-name" && ((typeof personReference == 'undefined'|| personReference == null)||((typeof propertyReference == 'undefined' || propertyReference ==null )&& location.href.indexOf("fromAddOther")==-1))){
+            $('#otherTabModalOpener').click()
+        }
+        else if(e.key == "page_available"){
+            $('#sameURLModalOpener').click()
+        }
+
+        else {
+            setCookie("currentURL",window.location.href)
+        }
+    };
+    window.addEventListener('storage', onLocalStorageEvent, false);
+*/
+
+
+/*    if(partName=="pet-name" && getCookie("passed") != null && getCookie("passed") != 'pet-name'  && (personReference != null||(propertyReference !=null && location.href.indexOf("fromAddOther")==-1))){
+        $('#otherTabModalOpener').click()
+    }*/
+
+    if (typeof next != "undefined") {
+        if (getCookie("passed") != null && getCookie("passed") != partName && getCookie("qnb") != "set" && window.location.href.indexOf("personReference") > -1) {
+            setCookie("passed", partName)
+            $('#loaderModalLoader').click()
+            window.location.href = window.location.href + "&back=2"
+        } else if (getCookie("qnb") == "set") {
+            setCookie("qnb", null)
+            setCookie("passed", partName)
+        } else {
+            setCookie("passed", partName)
+        }
+    }
+    $(function () {
+        $('[data-toggle="tooltip"]').tooltip()
+    });
+
+    $('.date-picker').each(function () {
+        $(this).datepicker();
+    });
+
+    $('.modal').on('shown.bs.modal', function () {
+        $('.modal').animate({scrollTop: 0}, 'slow');
+    });
+
+    $('#errorClose').on('click', function () {
+        $('#loaderModalLoader').click()
+    })
+
+    $(".date-pick").change(function () {
+        $("#datepicker").hide();
+
+        if ($(this).attr("id") == "otherDate") {
+            $("#datepicker").show();
+        }
+    });
+
+    if(partName != "pet-v2-price-and-cover-levels"){
+        $("#go-to-question-btn").on("click", function (e) {
+            goToFirstIncompleteQuestion();
+        })
+    }
+
+    setTimeout(function () {
+        setupModals();
+    }, 10)
+
+    $(function() {
+        function timeChecker() {
+            setInterval(function() {
+                timeCompare();
+            }, 1000);
+        }
+
+        function timeCompare() {
+            if(getCookie("r1") != null){
+                var createdTime = getCookie("timeChecker");
+                //console.log(createdTime);
+                if(createdTime == null){
+                    //console.log('refresh page')
+                    //console.log(date.toUTCString())
+                    eraseCookie("r1")
+                    eraseCookie("r2")
+                    eraseCookie("r3")
+                    eraseCookie("passed")
+                    window.location = window.location.pathname;
+                    return false;
+                }
+
+                var currentTime = new Date().toUTCString();
+                //console.log(currentTime);
+
+                var timeDiff = new Date(currentTime) - new Date(createdTime);
+                var minPast = (timeDiff / 60000);
+                //console.log(minPast);
+
+                if (minPast == 20) {
+                    //console.log('show popup')
+                    //console.log(date.toUTCString())
+                    $('#timeOutModal').modal('show');
+                    return false;
+                }else {
+                    //JUST ADDED AS A VISUAL CONFIRMATION
+                    //console.log("CreatedTime" + " - " + createdTime + " - " + minPast + " min past");
+                    //console.log(window.location.pathname);
+                }
+            }
+        }
+
+        timeChecker();
+
+    });
+
+});
+
+function continueQuote() {
+    goToStep(getCookie("passed"), {personReference, quoteReference, propertyReference : (pets != null ? pets[pets.length - 1].propertyReference : mainTreeResponse.result.quote.properties[(mainTreeResponse.result.quote.properties).length - 1].propertyReference)}, {})
+}
+
+$(document).ready(function () {
+    // Add arrow-up icon for collapse element which is open by default
+    $(".collapse.show").each(function () {
+        $(this).prev(".card-header").find(".fas").addClass("fa-angle-up").removeClass("fa-angle-down");
+    });
+
+    // Toggle arrow-down icon on show hide of collapse element
+    $(".collapse").on('show.bs.collapse', function (e) {
+        $(this).prev(".card-header").find(".fas").removeClass("fa-angle-down").addClass("fa-angle-up");
+        let name = e.target.getAttribute("name")
+        if (name) {
+            gtmAccordion(name,'pet-summary')
+        }
+    }).on('hide.bs.collapse', function () {
+        $(this).prev(".card-header").find(".fas").removeClass("fa-angle-up").addClass("fa-angle-down");
+    });
+
+    $('#loadNewQuoteButton').on('click',function (){
+        loadNewQuote();
+    })
+});
+
+function LOG(msg, object) {
+    typeof isDev !== 'undefined' && isDev ? object ? console.log(msg, object) : console.log(msg) : null
+}
+
+function loadNewQuote() {
+        deleteSecureCookies();
+        if(partName == 'pet-details' || partName == 'pet-name'){
+            setCookie("passed", partName);
+        }
+        if(selectedflow == "msm"){
+            eraseCookie("selectedflow");
+            eraseCookie("r1");
+            eraseCookie("r2");
+            eraseCookie("r3");
+            setCookie("selectedflow", 'optimizely2');
+            goToStep("about-your-pet", {selectedflow: 'optimizely2'}, {})
+        } else if (selectedflow == 'optimizely2') {
+            eraseCookie("selectedflow");
+            eraseCookie("r1");
+            eraseCookie("r2");
+            eraseCookie("r3");
+            setCookie("selectedflow", 'optimizely2');
+            goToStep("about-your-pet", {selectedflow: 'optimizely2'}, {})
+        }else if(selectedflow == 'idol'  || selectedflow == "goco"){
+            eraseCookie("selectedflow");
+            eraseCookie("r1");
+            eraseCookie("r2");
+            eraseCookie("r3");
+            setCookie("selectedflow", 'optimizely2');
+            goToStep("about-your-pet", {selectedflow: 'optimizely2'}, {})
+        } else if(selectedflow == 'quotezone'){
+            eraseCookie("selectedflow");
+            eraseCookie("r1");
+            eraseCookie("r2");
+            eraseCookie("r3");
+            setCookie("selectedflow", 'optimizely2');
+            goToStep("about-your-pet", {selectedflow: 'optimizely2'}, {})
+        }
+}
+
+function setupModals() {
+    if (typeof (pet) != "undefined" && pet) {
+        $('.modal-title').each(function (index, element) {
+            element.innerHTML = element.innerHTML.replace(/@petFirstname@/gm, '<span class="text-primary text-break text-pet-name">' + pet.attributes.firstName + '</span>')
+        });
+
+        $('.modal-body').each(function (index, element) {
+            element.innerHTML = element.innerHTML.replace(/@petFirstname@/gm, '<span class="text-primary text-break text-pet-name">' + pet.attributes.firstName + '</span>')
+                .replace(/@speciesold@/gm, '<span class="text-primary">' + pet.attributes.species + '</span>')
+                .replace(/@speciesnew@/gm, '<span class="text-primary text-pet-species">' + (pet.attributes.species == 'CAT' ? 'DOG' : 'CAT') + '</span>')
+        });
+    }
+}
+
+let errorsArr = []
+
+window.onerror = function (error, url, line) {
+    errorsArr.push({acc: 'error', data: 'ERR:' + error + ' URL:' + url + ' L:' + line})
+    $.ajax({
+        type: 'POST',
+        url: componentURL1,
+        data: {
+            errorData: JSON.stringify({
+                acc: 'error',
+                data: 'ERR:' + error + ' URL:' + url + ' L:' + line,
+                path: window.location.href
+            })
+        }
+    });
+};
+
+
+function elementInViewport1(el) {
+    var top = el.offsetTop;
+    var left = el.offsetLeft;
+    var width = el.offsetWidth;
+    var height = el.offsetHeight;
+
+    while (el.offsetParent) {
+        el = el.offsetParent;
+        top += el.offsetTop;
+        left += el.offsetLeft;
+    }
+
+    return (
+        top >= window.pageYOffset &&
+        left >= window.pageXOffset &&
+        (top + height) <= (window.pageYOffset + window.innerHeight) &&
+        (left + width) <= (window.pageXOffset + window.innerWidth)
+    );
+}
+
+if ($("#titleLbl").length){document.getElementById("titleLbl").focus();}
+
+var elementInFocusToClick = 'unselected';
+function clickElementFunction(element) {
+    elementInFocusToClick = element;
+}
+
+function focusedOnListItem(element) {
+    elementInFocusToClick = element.innerHTML.replace(/ /g,'');
+}
+
+
+function unselect() {
+    elementInFocusToClick = 'unselected';
+}
+
+(function() {
+    var input = document;
+    input.addEventListener("keyup", function(event) {
+       //validate();
+
+       if (event.keyCode === 13) {
+              console.log(elementInFocusToClick);
+        event.preventDefault();
+        if(elementInFocusToClick.includes('#') || elementInFocusToClick.includes('.')){
+            $(elementInFocusToClick).trigger("click");
+        }else if(elementInFocusToClick.includes('*')){
+            elementInFocusToClick = elementInFocusToClick.replace("*", "#");
+            $(elementInFocusToClick)[0].click();
+        }
+        else{
+             $("li").filter(function() {
+                return $(this).text().replace(/ /g,'') === elementInFocusToClick;
+             }).trigger("click");
+        }
+       }
+   });
+})();
+
+
+function elementInViewport2(el) {
+
+    // Special bonus for those using jQuery
+    if (typeof jQuery === "function" && el instanceof jQuery) {
+        el = el[0];
+    }
+
+    var rect = el.getBoundingClientRect();
+
+    return (
+        rect.top >= 0 &&
+        rect.left >= 0 &&
+        rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) && /* or $(window).height() */
+        rect.right <= (window.innerWidth || document.documentElement.clientWidth) /* or $(window).width() */
+    );
+}
+
+function elementInViewport(el) {
+    return (el.getBoundingClientRect().y <= (window.innerHeight || document.documentElement.clientHeight))
+}
+
+function manageTourProperty(){
+    if(!localStorage.tourProperties){
+        localStorage.tourProperties = JSON.stringify([])
+    }
+
+    let tourProperties = JSON.parse(localStorage.tourProperties);
+    if((typeof propertyReference != "undefined") && propertyReference){
+        if(tourProperties.length==0){
+            tourProperties.push(propertyReference)
+        }
+        else if(tourProperties[tourProperties.length-1]!=propertyReference){
+            tourProperties.push(propertyReference)
+        }
+        localStorage.tourProperties = JSON.stringify(tourProperties)
+    }
+}
+function zECall(a,b,c){
+    if(typeof zE == "function"){
+        zE(a,b,c)
+    }
+}
+
+function setIncrementalInterval(fn, initTime, incr) {
+    setTimeout(fn, initTime)
+    setTimeout(function () {
+        setIncrementalInterval(fn, initTime + incr, incr)
+    }, initTime)
+
+}
+
+function goToUnauthorizedPage(selectedflow) {
+    eraseCookie("selectedflow");
+    eraseCookie("r1");
+    eraseCookie("r2");
+    eraseCookie("r3");
+    setCookie("selectedflow", selectedflow);
+    goToStep("unauthorised", {selectedflow: selectedflow}, {}, false)
+}
+
+$(window).resize(function() {
+    repositionCookieBanner();
+});
+
+function repositionCookieBanner() {
+    var cookieHeight = 0;
+
+  if(!($('#alert-cookie').is(':visible'))){
+            cookieHeight = 0;
+            $(".site-container").css('padding-bottom', cookieHeight+"px");
+  }else{
+       if ($(this).width() < 768) {
+            cookieHeight = $('#alert-cookie').height() + 30;
+       } else {
+            cookieHeight = $('#alert-cookie').height() + 64;
+       }
+       $(".site-container").css('padding-bottom', cookieHeight+"px");
+  }
+}
+
+$(window).trigger('resize');
+
+function goToFirstIncompleteQuestion() {
+    if (hasAnyValidationError) {
+        let i = 0;
+        while (document.getElementsByClassName("alert-danger")[i].offsetParent == null) {
+            i++;
+        }
+        document.getElementsByClassName("alert-danger")[i].closest("fieldset").scrollIntoView();
+    } else {
+        let i = 0;
+        while (document.getElementsByClassName("fld-to-validate")[i].offsetParent == null) {
+            i++;
+        }
+        document.getElementsByClassName("fld-to-validate")[i].scrollIntoView();
+    }
+}
+
+function getRequiredErrorMessage(inputField, message = "Please answer this question") {
+
+    if (continueBtnClicked) {
+        $(inputField.closest(".go-to-question")).addClass("fld-to-validate");
+        return "Please answer this question";
+    }
+
+    return message;
+}
+
+function updateGoToQuestionSection(formElement, isFormValid = false) {
+    if (continueBtnClicked) {
+        if (partName == "about-your-pet") {
+            handleBreedRules()
+        }
+        let isValid = formElement.valid();
+        let errorCount = 0;
+        let successList = formElement.validate().successList;
+
+        for (const successListElement of successList) {
+            $(successListElement.closest(".go-to-question")).removeClass("fld-to-validate");
+        }
+
+        formElement.valid()
+
+        if (!isValid) {
+            $(".fld-to-validate").each(function () {
+                if ($(this).is(":visible")) {
+                    errorCount++;
+                }
+            })
+             if (errorCount != 0) {
+                 $("#goToQuestionBtnContainer p").text("This section has " + errorCount + " incomplete question" + (errorCount > 1 ? "s." : "."));
+                 $("#goToQuestionBtnContainer").show();
+             }
+        }
+
+        if (errorCount == 0) {
+            if (partName == "about-your-pet" && !isFormValid) {
+                let validationErrorMsgCount = 0;
+                let validationErrorElement;
+                $(".alert-danger").each(function () {
+                    if ($(this).is(":visible")) {
+                        validationErrorMsgCount++;
+                        validationErrorElement = $(this)
+                    }
+                })
+                if (validationErrorMsgCount == 1) {
+                    $("#goToQuestionBtnContainer p").text("This section has 1 incomplete question.");
+                    $("#goToQuestionBtnContainer").show();
+                    validationErrorElement.closest(".go-to-question").addClass("fld-to-validate")
+                    hasAnyValidationError = true;
+                }
+
+            } else {
+                $("#goToQuestionBtnContainer").hide();
+            }
+        }
+    }
+}
+
