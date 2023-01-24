@@ -147,6 +147,7 @@
   -o-border-radius: 50px;  
   width: 15%;
   min-width: 100px;
+  min-height: 46px;
   padding: 8px 10px;
   font-family: 'Latinotype-Goldplay-SemiBold';
   font-size: 14px;
@@ -544,7 +545,7 @@ iframe {
   #commands .btn {
     width: 22%;
     min-width: 45px;
-    padding: 6px 8px;
+    padding: 5px 8px;
     font-size: 10px;
     min-height: 25px;
   }
